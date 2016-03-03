@@ -1,0 +1,30 @@
+#fedora login details
+fedora:
+  #baseurl
+  - "http://localhost:8080/fedora"
+  #username
+  - "fedoraAdmin"
+  #password
+  - "fedoraAdmin"
+
+namespace: mediawiki
+mediawiki_importer: mediawiki
+
+# which importer to use (see key 'importer')
+mediawiki_importer: mediawiki
+
+#available importers
+importer:
+  mediawiki:
+    package: "Catmandu::Importer::MediaWiki"
+    options:
+      fix: "mediawiki"
+      url: "https://manuscriptdesk.uantwerpen.be/w/api.php"
+      lgname: myname
+      lgpassword: mypassword
+      args:
+        prop: "revisions|info"
+        rvprop: "ids"
+        rvlimit: "max"
+        gaplimit: 100
+        gapfilterredir: "nonredirects"
