@@ -65,6 +65,17 @@ $ carton exec perl bin/md2fedora.pl [--force]
 Parameters:
   - **force**: force update of object/datastream if it exists already
 
+Add collection objects from Transcribe Bentham [EXPERIMENTAL]
+```
+$ carton exec perl bin/mdcollections2fedora.pl [--delete]
+```
+Parameters:
+  - **delete**: delete object if it exists already
+
+Warnings:
+  - As collection are no part of mediawiki, and the codes for each collection can (and do) exceed the maximum length of 64 characters, we create our own identifiers.
+  - Each collection contains rdf links to page objects. These links are discovered using the Fedora method "findObjects", by searching on label. Fedora unfortunately keeps idle queries in memory for a moment in time (for later use). The connection can overflow.
+
 
 ### Background
 
