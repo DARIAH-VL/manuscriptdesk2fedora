@@ -14,12 +14,45 @@ use RDF::Trine::Node::Resource;
 use RDF::Trine::Node::Literal;
 use RDF::Trine::Serializer;
 use RDF::Trine::Graph;
-
 use Exporter qw(import);
+
+sub root {
+    state $root = do {
+        require File::Basename;
+        require Cwd;
+        my $dir = Cwd::abs_path(File::Basename::dirname(__FILE__));
+        my(@p) = split /\//,$dir;
+        shift @p;
+        my $r;
+        while(@p){
+            my $d = "/".join("/",@p);
+            my $c = "$d/catmandu.yml";
+            if(-f $c){
+                $r = $d;
+                last;
+            }
+            pop @p;
+        }
+        $r;
+    };
+}
+sub init_log {
+    state $loaded = 0;
+    return if $loaded;
+    require Log::Any::Adapter;
+    require Log::Log4perl;
+    #init log
+    Log::Log4perl::init(root().'/log4perl.conf');
+    Log::Any::Adapter->set('Log::Log4perl');
+    $loaded = 1;
+}
+BEGIN {
+    init_log();
+}
 
 my @fedora = qw(id_generator create_id fedora ingest addDatastream modifyDatastream getDatastream getDatastreamDissemination getObjectProfile generate_foxml);
 my @utils = qw(json to_tmp_file lwp);
-my @rdf = qw(rdf_parser rdf_model rdf_statement rdf_literal rdf_resource rdf_graph rdf_namespaces rdf_serializer rdf_change);
+my @rdf = qw(rdf_parser rdf_model rdf_statement rdf_literal rdf_resource rdf_graph rdf_namespaces rdf_serializer rdf_from_datastream rdf_change);
 
 our @EXPORT_OK = (@fedora,@utils,@rdf);
 our %EXPORT_TAGS = (
@@ -143,39 +176,42 @@ sub rdf_namespaces {
 sub rdf_serializer {
     RDF::Trine::Serializer->new('rdfxml',namespaces => rdf_namespaces() );
 }
+sub rdf_from_datastream {
+    my(%opts)=@_;
+    my $pid = delete $opts{pid};
+    my $dsId = delete $opts{dsId};
+
+    my $res = getDatastreamDissemination( pid => $pid, dsID => $dsId );
+
+    if( $res->is_ok ){
+
+        my $rdf = rdf_model();
+        rdf_parser->parse_into_model(undef,$res->raw(),$rdf);
+        return $rdf;
+
+    }
+
+    return undef;
+}
 sub rdf_change {
     my (%opts) = @_;
+
     my $pid = delete $opts{pid};
     my $dsId = delete $opts{dsId};
     my $new_rdf = $opts{rdf};
-    my $old_rdf = rdf_model();
 
-    my $rdf_serializer = rdf_serializer();
-    my $r = getDatastreamDissemination( pid => $pid, dsID => $dsId );
-    my $is_new = 1;
+    my $old_rdf = rdf_from_datastream( pid => $pid, dsId => $dsId );
+    my $is_new = !defined($old_rdf);
+    $old_rdf = rdf_model() unless defined $old_rdf;
 
-    if( $r->is_ok ){
-
-        say "object $pid: $dsId found";
-        $is_new = 0;
-
-        my $rdf_xml = $r->raw();
-        my $parser = rdf_parser();
-        $parser->parse_into_model(undef,$rdf_xml,$old_rdf);
-
-    }else{
-
-        say "object $pid: $dsId not found";
-
-    }
     my $old_graph = rdf_graph( $old_rdf );
     my $new_graph = rdf_graph( $new_rdf );
 
     unless( $old_graph->equals($new_graph) ){
 
-        say "object $pid: $dsId has changed";
+        Catmandu->log->info( "object $pid: $dsId has changed" );
 
-        my $rdf_data = $rdf_serializer->serialize_model_to_string( $new_rdf );
+        my $rdf_data = rdf_serializer()->serialize_model_to_string( $new_rdf );
 
         #write content to tempfile
         my $file = to_tmp_file($rdf_data);
@@ -202,15 +238,18 @@ sub rdf_change {
 
         }
 
-        die($r2->raw()) unless $r2->is_ok();
+        unless( $r2->is_ok() ){
+            Catmandu->log->error( $r2->raw() );
+            die($r2->raw());
+        }
 
         if($is_new){
 
-            say "object $pid: $dsId added";
+            Catmandu->log->info("object $pid: $dsId added");
 
         }else{
 
-            say "object $pid: $dsId updated";
+            Catmandu->log->info("object $pid: $dsId updated");
 
         }
 

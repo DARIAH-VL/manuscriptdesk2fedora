@@ -1,7 +1,8 @@
 package RevisionProcessor::TB_IMG;
 use Catmandu::Sane;
-use Moo;
 use Catmandu::Util qw(:is);
+use Catmandu;
+use Moo;
 use WWW::Mechanize;
 use File::Temp qw(tempfile);
 
@@ -25,12 +26,13 @@ sub process {
         my $m = WWW::Mechanize->new( autocheck => 0);
         $m->get( $revision->{_url} );
         unless ( $m->success() ) {
+            Catmandu->log->error( $m->content() );
             die( $m->content() );
         }
         my $res = $m->follow_link( text => 'Original Image', n => 1 );
 
         unless ( $res ) {
-            say "no image found on page ".$revision->{_url};
+            Catmandu->log->warn("no image found on page ".$revision->{_url});
             unlink $file;
         }else{
             binmode $fh,":raw";
@@ -64,16 +66,22 @@ sub insert {
 
     if( $datastream ) {
         if ( $self->force ) {
-            say "modifying datastream $dsID of object $pid";
+            Catmandu->log->info("modifying datastream $dsID of object $pid");
             my $res = $self->fedora()->modifyDatastream(%args);
-            die($res->raw()) unless $res->is_ok();
+            unless( $res->is_ok() ){
+                Catmandu->log->error($res->raw());
+                die($res->raw());
+            }
         }
     }
     else{
-        say "adding datastream $dsID to object $pid";
+        Catmandu->log->info("adding datastream $dsID to object $pid");
 
         my $res = $self->fedora()->addDatastream(%args);
-        die($res->raw()) unless $res->is_ok();
+        unless( $res->is_ok() ){
+            Catmandu->log->error($res->raw());
+            die($res->raw());
+        }
     }
 
 }
@@ -82,11 +90,11 @@ sub cleanup {
     my $files = $self->files();
     for my $file(@{ $self->files() }){
         if( -f $file ){
-            say "deleting file $file";
+            Catmandu->log->debug("deleting file $file");
             unlink $file;
         }
         elsif( -d $file ){
-            say "deleting directory $file";
+            Catmandu->log->debug("deleting directory $file");
             rmtree($file);
         }
     }

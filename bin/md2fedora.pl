@@ -34,11 +34,12 @@ Catmandu->importer($mediawiki_importer)->each(sub{
             my $res = getObjectProfile(pid => $pid);
             if( $res->is_ok ) {
 
+                Catmandu->log->info("object $pid: found");
                 $object_profile = $res->parse_content();
 
             } else {
 
-                say "object $pid: not yet in fedora";
+                Catmandu->log->warn("object $pid: not yet in fedora");
                 return;
 
             }

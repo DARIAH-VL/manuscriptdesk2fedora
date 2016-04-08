@@ -10,7 +10,6 @@ use File::Basename;
 use HTML::TreeBuilder::XPath;
 use RDF::Trine::Serializer;
 use Data::UUID;
-use Data::Dumper;
 
 my $delete;
 GetOptions(
@@ -36,6 +35,7 @@ for my $key(@keys){
         my $res = $ua->post( $all_collections_url, [ lc($key) => uc($key), offset => $offset ] );
 
         unless ( $res->is_success() ) {
+            Catmandu->log->error( $res->content() );
             die( $res->content() );
         }
         my $tree_cols = HTML::TreeBuilder::XPath->new_from_content( $res->content() );
@@ -44,6 +44,7 @@ for my $key(@keys){
             my $collection_code = $input->attr('value');
             my $r = $ua->post( $all_collections_url, [ singlecollection => $collection_code ] );
             unless( $r->is_success ){
+                Catmandu->log->error( $r->content() );
                 die( $r->content );
             }
             my $tree_col = HTML::TreeBuilder::XPath->new_from_content( $r->content() );
@@ -59,7 +60,7 @@ for my $key(@keys){
             }
             if(defined($collection_object_profile) && $delete){
                 $fedora->purgeObject(pid => $collection_object_profile->{pid});
-                say "object $collection_object_profile->{pid} purged";
+                Catmandu->log->warn("object $collection_object_profile->{pid} purged on request");
                 $collection_object_profile = undef;
             }
             #empty datastream DC for collection
@@ -67,12 +68,15 @@ for my $key(@keys){
                 $pid_collection = "$namespace_collection:".Data::UUID->new->create_str;
                 my $foxml = generate_foxml({ label => $collection_code, ownerId => $ownerId });
                 my $r2 = ingest( pid => $pid_collection , xml => $foxml , format => 'info:fedora/fedora-system:FOXML-1.1' );
-                die($r2->raw()) unless $r2->is_ok();
-                say "object $pid_collection: ingested";
+                unless( $r2->is_ok() ){
+                    Catmandu->log->error($r2->raw());
+                    die($r2->raw());
+                }
+                Catmandu->log->info("object $pid_collection: ingested");
             }else{
                 $pid_collection = $collection_object_profile->{pid};
             }
-            #RELS-EXT
+            #RELS-EXT: collection -> object
             {
                 my $new_rdf = rdf_model();
                 $new_rdf->add_statement(
@@ -96,7 +100,7 @@ for my $key(@keys){
                     my $obj = $r3->is_ok ? $r3->parse_content : {};
                     my $results = $obj->{results} // [];
                     unless(scalar(@$results)){
-                        say "no page found for title $title";
+                        Catmandu->log->error("no page found for title $title");
                         next;
                     }
                     my $page_object_profile = $results->[0];
@@ -108,11 +112,22 @@ for my $key(@keys){
                             rdf_resource("info:fedora/".$page_object_profile->{pid})
                         )
                     );
+                    #change RELS-EXT for page itself
+                    {
+                        my $page_rdf = rdf_from_datastream(pid => $page_object_profile->{pid}, dsId => "RELS-EXT") || rdf_model();
+                        $page_rdf->add_statement(
+                            rdf_statement(
+                                rdf_resource("info:fedora/".$page_object_profile->{pid}),
+                                rdf_resource($namespaces->{rel}."isMemberOfCollection"),
+                                rdf_resource("info:fedora/${pid_collection}")
+                            )
+                        );
+                        rdf_change( pid => $page_object_profile->{pid}, dsId => "RELS-EXT", rdf => $page_rdf );
+                    }
                 }
                 rdf_change(pid => $pid_collection, dsId => "RELS-EXT", rdf => $new_rdf);
 
             }
-
         }
 
         if(scalar(@inputs) >= $limit){
