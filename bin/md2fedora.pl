@@ -6,7 +6,7 @@ use MediaWikiFedora qw(:all);
 use File::Temp qw(tempfile tempdir);
 use Getopt::Long;
 use File::Basename;
-use RevisionProcessor::TB_IMG;
+use RevisionProcessor::TB_IMG2;
 
 my $force = 0;
 
@@ -46,7 +46,7 @@ Catmandu->importer($mediawiki_importer)->each(sub{
         }
         #add datastream TB_IMG
         {
-            my $p = RevisionProcessor::TB_IMG->new(
+            my $p = RevisionProcessor::TB_IMG2->new(
                 fedora => $fedora,
                 page => $page,
                 revision => $revision,

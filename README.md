@@ -39,6 +39,12 @@ mediawiki_importer: mediawiki
 # which importer to use (see key 'importer')
 mediawiki_importer: mediawiki
 
+#mediawiki login details
+mediawiki:
+  url: "https://manuscriptdesk.uantwerpen.be/w/api.php"
+  lgname: myname
+  lgpassword: "mypassword"
+
 #available importers
 importer:
   mediawiki:

@@ -50,16 +50,18 @@ BEGIN {
     init_log();
 }
 
+my @mediawiki = qw(mediawiki);
 my @fedora = qw(id_generator create_id fedora ingest addDatastream modifyDatastream getDatastream getDatastreamDissemination getObjectProfile generate_foxml);
 my @utils = qw(json to_tmp_file lwp);
 my @rdf = qw(rdf_parser rdf_model rdf_statement rdf_literal rdf_resource rdf_graph rdf_namespaces rdf_serializer rdf_from_datastream rdf_change);
 
-our @EXPORT_OK = (@fedora,@utils,@rdf);
+our @EXPORT_OK = (@fedora,@utils,@rdf,@mediawiki);
 our %EXPORT_TAGS = (
     all => [@EXPORT_OK],
     fedora => [@fedora],
     rdf => [@rdf],
-    utils => [@utils]
+    utils => [@utils],
+    mediawiki => [@mediawiki]
 );
 sub create_id {
     id_generator()->generate();
@@ -256,6 +258,18 @@ sub rdf_change {
         unlink $file if is_string($file) && -f $file;
     }
 
+}
+sub mediawiki {
+    state $mw = do {
+        require MediaWiki::API;
+        my $config = Catmandu->config->{mediawiki};
+        my $mw = MediaWiki::API->new( { api_url =>  $config->{url} });
+        my($lgname,$lgpassword) = ( $config->{lgname},$config->{lgpassword} );
+        if(is_string($lgname) && is_string($lgpassword)){
+            $mw->login({ lgname => $lgname, lgpassword => $lgpassword }) or die($mw->{error}->{details});
+        }
+        $mw;
+    };
 }
 
 1;
