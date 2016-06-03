@@ -1,3 +1,3 @@
 PATH="/opt/perl-5.22.0-x86_64-linux-thread-multi/bin:/usr/local/bin:${PATH}"
 
-0 0 * * * fedora /opt/manuscriptdesk2fedora/bin/md2fedora 1>> /var/log/manuscriptdesk2fedora/md2fedora.log 2>> /var/log/manuscriptdesk2fedora/md2fedora.error
+0 2 * * * fedora /opt/manuscriptdesk2fedora/bin/md2fedora 1>> /var/log/manuscriptdesk2fedora/md2fedora.log 2>> /var/log/manuscriptdesk2fedora/md2fedora.error
