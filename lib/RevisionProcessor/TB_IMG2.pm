@@ -4,7 +4,7 @@ use Catmandu::Util qw(:is);
 use Catmandu;
 use Moo;
 use File::Temp qw(tempfile);
-use MediaWikiFedora qw(mediawiki);
+use MediaWikiFedora qw(mediawiki image_info md5_file);
 
 with 'RevisionProcessor';
 
@@ -28,11 +28,16 @@ sub process {
         my($fh,$file) = tempfile(UNLINK => 1,EXLOCK => 0);
         my $url = $revision->{_url}."&showoriginalimage=true";
         my $res = $ua->get( $url );
-        unless ( $res->is_success() ) {
-            Catmandu->log->warn("revision url $revision->{_url} return status code ".$res->code());
+        if ( ! $res->is_success() ) {
+            Catmandu->log->warn("image url $url returned status code ".$res->code());
             Catmandu->log->warn( $res->content() );
             unlink $file;
-        }else{
+        }
+        elsif( $res->content_type !~ /image/o ){
+            Catmandu->log->warn("image url returned invalid content with content type ".$res->content_type());
+            unlink $file;
+        }
+        else{
             binmode $fh,":raw";
             print $fh $res->content();
             $self->files([ $file ]);
@@ -53,17 +58,23 @@ sub insert {
         return;
     }
 
+    my $info = image_info($file);
+
     my %args = (
         pid => $pid,
         dsID => $dsID,
         file => $file,
         versionable => "true",
         dsLabel => "Transcribe Bentham original image",
-        mimeType => "image/jpeg"
+        mimeType => $info->{MIMEType}
     );
 
     if( $datastream ) {
         if ( $self->force ) {
+
+            $args{checksum} = md5_file($file);
+            $args{checksumType} = "MD5";
+
             Catmandu->log->info("modifying datastream $dsID of object $pid");
             my $res = $self->fedora()->modifyDatastream(%args);
             unless( $res->is_ok() ){
@@ -73,6 +84,10 @@ sub insert {
         }
     }
     else{
+
+        $args{checksum} = md5_file($file);
+        $args{checksumType} = "MD5";
+
         Catmandu->log->info("adding datastream $dsID to object $pid");
 
         my $res = $self->fedora()->addDatastream(%args);

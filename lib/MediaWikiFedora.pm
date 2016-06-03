@@ -14,6 +14,8 @@ use RDF::Trine::Node::Resource;
 use RDF::Trine::Node::Literal;
 use RDF::Trine::Serializer;
 use RDF::Trine::Graph;
+use Image::ExifTool;
+use Digest::MD5;
 use Exporter qw(import);
 
 sub root {
@@ -52,7 +54,7 @@ BEGIN {
 
 my @mediawiki = qw(mediawiki);
 my @fedora = qw(id_generator create_id fedora ingest addDatastream modifyDatastream getDatastream getDatastreamDissemination getObjectProfile generate_foxml);
-my @utils = qw(json to_tmp_file lwp);
+my @utils = qw(json to_tmp_file lwp image_info exif md5_file);
 my @rdf = qw(rdf_parser rdf_model rdf_statement rdf_literal rdf_resource rdf_graph rdf_namespaces rdf_serializer rdf_from_datastream rdf_change);
 
 our @EXPORT_OK = (@fedora,@utils,@rdf,@mediawiki);
@@ -271,5 +273,18 @@ sub mediawiki {
         $mw;
     };
 }
-
+sub exif {
+    state $e = Image::ExifTool->new();
+}
+sub image_info {
+    exif()->ImageInfo($_[0]);
+}
+sub md5_file {
+    my $path = $_[0];
+    open my $fh,"<",$path or die($!);
+    binmode $fh,":raw";
+    my $md5 = Digest::MD5->new->addfile($fh)->hexdigest;
+    close $fh;
+    $md5;
+}
 1;
